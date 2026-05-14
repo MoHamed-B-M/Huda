@@ -1,0 +1,53 @@
+name: Flutter Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*' # Triggers on v1.0.0, v1.0.1, etc.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          # Use cache for faster builds
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build APK (Release Mode)
+        # We build in --release mode for both Nightly and Tagged versions
+        run: flutter build apk --release
+
+      # STEP 1: Always upload the APK as an artifact (Nightly)
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+      # STEP 2: Only create a GitHub Release if the push is a Tag (v*)
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/app/outputs/flutter-apk/app-release.apk
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
